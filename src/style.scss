@@ -77,9 +77,9 @@ $text-start: (list.length($stairs) - 1) * $row;
 .scales {
   font-size: clamp(40px, 8.4vw, 121px);
   height: $frame-height;
-  overflow: hidden;
+  overflow: hidden; // clippe le conteneur de 200vw, pas de scroll horizontal
   position: relative;
-  width: 200vw;
+  width: 100%;
 
   &:after {
     border-bottom: 1px solid var(--black);
@@ -100,7 +100,7 @@ $text-start: (list.length($stairs) - 1) * $row;
     position: absolute;
     text-transform: uppercase;
     top: $stairs-top;
-    width: 100%;
+    width: 200vw; // les rangées débordent à droite pour que la pente traverse l'écran
   }
 }
 
