@@ -19,15 +19,81 @@ gsap.ticker.lagSmoothing(0);
 // marches : la timeline est pilotée par le scroll (scrub).
 const section = document.querySelector('section.content');
 const scales = section.querySelector('.scales');
-const inners = section.querySelectorAll('.row-inner');
+const container = scales.querySelector('.scales-container');
+const rows = [...scales.querySelectorAll('.row')];
+const inners = rows.map((row) => row.querySelector('.row-inner'));
 
-// Une seule « ombre » monte l'escalier : toutes les rangées parcourent la même
-// distance absolue, celle qu'il faut à la plus profonde pour sortir entièrement
-// (plus une ligne de marge pour les jambages).
-const travel = () => {
-  const deepest = Math.max(...[...inners].map((el) => el.offsetHeight));
-  return -(deepest + parseFloat(getComputedStyle(scales).fontSize));
+// Géométrie de chaque rangée : matrice CSS (skew / scale), origine dans le
+// repère de .scales, bande visible (overflow hidden) et rectangle local de
+// l'encre du texte.
+const measureRows = () => {
+  const cm = new DOMMatrix(getComputedStyle(container).transform);
+  const origin = { x: container.offsetLeft + cm.e, y: container.offsetTop + cm.f };
+
+  return rows.map((row) => {
+    const style = getComputedStyle(row);
+    const inner = row.firstElementChild;
+    const text = inner.firstElementChild;
+    return {
+      matrix: new DOMMatrix(style.transform),
+      ox: origin.x + row.offsetLeft,
+      oy: origin.y + row.offsetTop,
+      band: row.offsetHeight,
+      x0: parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+      y0: parseFloat(style.borderTopWidth) + parseFloat(getComputedStyle(inner).paddingTop),
+      w: text.offsetWidth,
+      h: text.offsetHeight,
+    };
+  });
 };
+
+// Une seule « ombre » monte l'escalier : toutes les rangées décalent leur
+// texte de la même distance t. Reste-t-il de l'encre visible dans le cadre ?
+// On échantillonne le rectangle de texte, borné à la bande de la rangée,
+// et on projette chaque point.
+const isVisible = (geometry, frame, t) =>
+  geometry.some((g) => {
+    const top = Math.max(0, g.y0 - t);
+    const bottom = Math.min(g.band, g.y0 + g.h - t);
+    if (bottom <= top) return false;
+    for (let i = 0; i <= 24; i++) {
+      for (let j = 0; j <= 8; j++) {
+        const point = g.matrix.transformPoint(
+          new DOMPoint(g.x0 + (g.w * i) / 24, top + ((bottom - top) * j) / 8),
+        );
+        const x = g.ox + point.x;
+        const y = g.oy + point.y;
+        if (x >= frame.left && x <= frame.right && y >= 0 && y <= frame.height) return true;
+      }
+    }
+    return false;
+  });
+
+// Plus petit |t| dans la direction donnée à partir duquel le texte est hors cadre
+const findExit = (geometry, frame, direction) => {
+  const reach = geometry.at(-1).y0 + geometry.at(-1).h + frame.height;
+  let visible = 0;
+  let hidden = direction * reach;
+  for (let i = 0; i < 40; i++) {
+    const mid = (visible + hidden) / 2;
+    if (isVisible(geometry, frame, mid)) visible = mid;
+    else hidden = mid;
+  }
+  return hidden;
+};
+
+// Course du texte : de juste sous le cadre à juste au-dessus
+const course = { from: 0, to: 0 };
+const measure = () => {
+  const geometry = measureRows();
+  const left = -scales.getBoundingClientRect().left;
+  const frame = { left, right: left + document.documentElement.clientWidth, height: scales.clientHeight };
+  course.from = -findExit(geometry, frame, -1);
+  course.to = -findExit(geometry, frame, 1);
+};
+
+measure();
+ScrollTrigger.addEventListener('refreshInit', measure);
 
 const tl = gsap.timeline({
   scrollTrigger: {
@@ -36,12 +102,12 @@ const tl = gsap.timeline({
     end: '+=100%',
     pin: true,
     scrub: true,
-    invalidateOnRefresh: true, // recalcule start et travel() au resize
+    invalidateOnRefresh: true, // rejoue measure() et relit course au resize
     markers: false,
   },
 });
 
-tl.to(inners, { y: travel, ease: 'none' }, 0);
+tl.fromTo(inners, { y: () => course.from }, { y: () => course.to, ease: 'none' }, 0);
 
-// Inter arrive en @import : la hauteur des rangées peut changer après coup.
+// Inter arrive en @import : la géométrie change une fois la police chargée.
 document.fonts.ready.then(() => ScrollTrigger.refresh());

@@ -63,21 +63,21 @@ $riser-scale: math.div(4, 3);
 $tread-drop: $row * $tread-scale; // 60px : hauteur rendue d'une marche
 $riser-drop: $row * $riser-scale; // 120px : hauteur rendue d'une contremarche
 $tread-shift: $tread-drop * math.tan($depth); // 104px : décalage horizontal d'une marche
-$ground-height: 620 * $px;
-$text-start: 600 * $px; // position du texte dans la 1re rangée (coordonnées dépliées)
+$ground-height: 12em; // assez haut pour que le texte puisse partir sous le cadre
+$frame-height: 700 * $px; // cadre visible
+$stairs-top: 149 * $px; // bord gauche du haut de l'escalier dans le cadre
 
 // Ordre des rangées dans le HTML, de haut en bas
 $stairs: riser, tread, riser, tread, riser, ground;
 
+// Le texte est posé au ras du sol ; le JS calcule ensuite d'où il part et où
+// il s'arrête pour entrer et sortir du cadre.
+$text-start: (list.length($stairs) - 1) * $row;
+
 .scales {
-  align-items: center;
-  display: flex;
   font-size: clamp(40px, 8.4vw, 121px);
-  justify-content: flex-start;
-  height: 60vh;
+  height: $frame-height;
   overflow: hidden;
-  padding-left: 0;
-  padding-top: 100vw * math.tan(-$slope); // remontée de la pente sur une largeur d'écran (700px à 1920)
   position: relative;
   width: 200vw;
 
@@ -96,8 +96,10 @@ $stairs: riser, tread, riser, tread, riser, ground;
 
   &-container {
     font-weight: 900;
+    left: -20vw;
+    position: absolute;
     text-transform: uppercase;
-    transform: translateX(-20vw);
+    top: $stairs-top;
     width: 100%;
   }
 }
@@ -150,6 +152,7 @@ $stairs: riser, tread, riser, tread, riser, ground;
 
   p {
     line-height: 0.8;
+    width: max-content; // largeur de l'encre, mesurée par le JS
   }
 }
 
